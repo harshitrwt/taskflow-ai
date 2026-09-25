@@ -34,21 +34,6 @@ TaskFlow Pro is an enterprise Kanban board engineered around a mathematically ri
 
 ---
 
-## Why `max()` and Not `sum()` — The Diamond Convergence Thesis
-
-When multiple dependency branches converge upon a single downstream task (e.g. Task A feeds both Tasks B and C, which both feed Task D), naive schedule propagation algorithms calculate the delay of D by summing the delays along each incoming path:
-$$\Delta D = \Delta B + \Delta C$$
-
-This causes the **double-counting bug**, artificially inflating schedules whenever parallel paths exist.
-
-In TaskFlow Pro, schedule dates are computed via a topological forward pass where each task's earliest allowable start date is strictly determined by:
-$$\text{earliest\_start}(T) = \max_{p \in \text{prereqs}(T)}(\text{end\_date}(p)) + 1\text{ day}$$
-$$\text{end\_date}(T) = \text{start\_date}(T) + (\text{duration\_days} - 1)$$
-
-Because the engine evaluates the graph in topological order and uses `max()`, delays across parallel tracks naturally absorb into the pacing track without accumulating phantom compounding delays. This single algorithmic choice resolves diamond convergence, multi-path propagation, and rollback consistency simultaneously.
-
----
-
 ## Security & AI Hallucination Defense
 
 Task descriptions entered by users represent an untrusted input surface fed directly into LLM prompts. TaskFlow Pro implements defense-in-depth:
