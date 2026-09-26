@@ -32,7 +32,6 @@ TaskFlow Pro is an enterprise Kanban board engineered around a mathematically ri
 └─────────────────────────────────┘ └────────────────────────────────────┘
 ```
 
----
 
 ## Security & AI Hallucination Defense
 
