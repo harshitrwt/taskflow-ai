@@ -1,6 +1,6 @@
 # TaskFlow AI : DAG-Powered Critical Path Kanban
 
-TaskFlow Pro is an enterprise Kanban board engineered around a mathematically rigorous Directed Acyclic Graph (DAG) scheduling engine and a secure AI dependency advisor. Designed for Contata NCR Hackathon 2026, it models complex task prerequisites, computes dynamic real-time Blocked and Ready states, and automatically propagates schedule delays without the classic diamond-convergence compounding bug. The system features a Critical Path Method (CPM) zero-slack analyzer and a Groq-powered Llama 3.3 dependency recommendation pipeline with multi-layered defenses against prompt injection and hallucination.
+TaskFlow AI is an enterprise Kanban board engineered around a mathematically rigorous Directed Acyclic Graph (DAG) scheduling engine and a secure AI dependency advisor. Designed for Contata NCR Hackathon 2026, it models complex task prerequisites, computes dynamic real-time Blocked and Ready states, and automatically propagates schedule delays without the classic diamond-convergence compounding bug. The system features a Critical Path Method (CPM) zero-slack analyzer and a Groq-powered Llama 3.3 dependency recommendation pipeline with multi-layered defenses against prompt injection and hallucination.
 
 ---
 
