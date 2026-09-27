@@ -3,7 +3,6 @@ import {
   X,
   HelpCircle,
   Cpu,
-  Sparkles,
   Activity,
   Play,
 } from 'lucide-react';
@@ -52,7 +51,7 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ onClose }) =
                 System Architecture & Interactive Demo Guide
               </h3>
               <p style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
-                How TaskFlow Pro's DAG Engine, CPM Scheduler, and AI Precedence work under the hood.
+                How TaskFlow AI's DAG Engine, CPM Scheduler, and AI Precedence work under the hood.
               </p>
             </div>
           </div>
@@ -147,7 +146,7 @@ export const SystemGuideModal: React.FC<SystemGuideModalProps> = ({ onClose }) =
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
-              <Sparkles size={16} style={{ color: '#0f172a' }} />
+              <Cpu size={16} style={{ color: '#0f172a' }} />
               <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>
                 3. How the AI Precedence Advisor Works
               </h4>

@@ -72,7 +72,6 @@ export interface ApiError {
   detail?: unknown;
 }
 
-
 export interface ImpactedTaskSimulation {
   id: string;
   title: string;

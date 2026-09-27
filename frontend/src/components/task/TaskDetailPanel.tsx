@@ -10,6 +10,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Loader2,
+  Zap,
 } from 'lucide-react';
 import { Task, ColumnStatus, AiSuggestion } from '../../types';
 import { DependencyPicker } from './DependencyPicker';
@@ -24,6 +25,7 @@ interface TaskDetailPanelProps {
   onUpdate: (id: string, updates: any) => Promise<any>;
   onDelete: (id: string) => Promise<any>;
   onTaskRefreshed: () => void;
+  onSimulateDelay?: (task: Task) => void;
 }
 
 export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
@@ -33,6 +35,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
   onUpdate,
   onDelete,
   onTaskRefreshed,
+  onSimulateDelay,
 }) => {
   const { addDependency } = useDependencies();
 
@@ -395,16 +398,37 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
               borderTop: '1px solid var(--border-subtle)',
             }}
           >
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={isDeleting}
-              className="btn btn-danger"
-              style={{ fontSize: '0.8rem' }}
-            >
-              <Trash2 size={13} />
-              {isDeleting ? 'Deleting...' : 'Delete Task'}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="btn btn-danger"
+                style={{ fontSize: '0.8rem' }}
+              >
+                <Trash2 size={13} />
+                {isDeleting ? 'Deleting...' : 'Delete Task'}
+              </button>
+
+              {onSimulateDelay && (
+                <button
+                  type="button"
+                  onClick={() => onSimulateDelay(task)}
+                  className="btn btn-secondary"
+                  title="Simulate schedule slippage ripple effect"
+                  style={{
+                    fontSize: '0.8rem',
+                    background: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                    color: '#0f172a',
+                    fontWeight: 700,
+                  }}
+                >
+                  <Zap size={13} />
+                  Simulate Delay
+                </button>
+              )}
+            </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               {saveMessage && (

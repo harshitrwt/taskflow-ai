@@ -15,6 +15,7 @@ import {
   X,
   Award,
   Building2,
+  Zap,
 } from 'lucide-react';
 import { useTasks } from './hooks/useTasks';
 import { Task } from './types';
@@ -28,6 +29,8 @@ import { WorkspaceTemplatesModal } from './components/workspace/WorkspaceTemplat
 import { LandingPage } from './components/landing/LandingPage';
 import { CompanyAuthModal, CompanyAuthData } from './components/auth/CompanyAuthModal';
 import { ConfirmDeleteModal } from './components/common/ConfirmDeleteModal';
+import { WhatIfSimulatorModal } from './components/simulator/WhatIfSimulatorModal';
+import { AiProjectArchitectModal } from './components/ai/AiProjectArchitectModal';
 import { api } from './api/client';
 
 interface ToastItem {
@@ -53,7 +56,30 @@ export const App: React.FC = () => {
     invalidate,
   } = useTasks();
 
-  const [currentPage, setCurrentPage] = useState<'app' | 'landing'>('landing');
+  // Synchronized browser routing that guarantees /dashboard and / match 100%
+  const [currentPath, setCurrentPath] = useState<string>(() => {
+    return typeof window !== 'undefined' ? window.location.pathname : '/';
+  });
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigateTo = (path: string) => {
+    if (typeof window !== 'undefined' && window.location.pathname !== path) {
+      window.history.pushState({}, '', path);
+    }
+    setCurrentPath(path);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const isDashboard = currentPath.toLowerCase().startsWith('/dashboard');
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -64,6 +90,9 @@ export const App: React.FC = () => {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signup');
   const [isCriticalPathActive, setIsCriticalPathActive] = useState(false);
+  const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
+  const [simulatorTaskId, setSimulatorTaskId] = useState<string | null>(null);
+  const [isAiArchitectOpen, setIsAiArchitectOpen] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
   const [hideDone, setHideDone] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -154,79 +183,67 @@ export const App: React.FC = () => {
   const progressPercent = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
   const isProjectComplete = totalCount > 0 && doneCount === totalCount;
 
-  // Render Landing Page if active
-  if (currentPage === 'landing') {
-    return (
-      <>
+  return (
+    <>
+      {!isDashboard ? (
         <LandingPage
-          onEnterApp={() => setCurrentPage('app')}
+          onEnterApp={() => navigateTo('/dashboard')}
           onOpenAuth={(mode) => {
             setAuthMode(mode);
             setIsAuthOpen(true);
           }}
+          onOpenAiArchitect={() => setIsAiArchitectOpen(true)}
           activeOrgName={companySession ? `${companySession.orgName} (${companySession.workspaceName})` : null}
         />
-
-        {isAuthOpen && (
-          <CompanyAuthModal
-            initialMode={authMode}
-            onClose={() => setIsAuthOpen(false)}
-            onSuccess={(data) => {
-              setCompanySession(data);
-              setCurrentPage('app');
-              addToast(`Connected to ${data.orgName} (${data.workspaceName})`, 'success');
-            }}
-          />
-        )}
-      </>
-    );
-  }
-
-  return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-app)' }}>
-      {/* Top Navbar */}
-      <header
-        style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 100,
-          padding: '0.75rem 1.5rem',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          background: '#ffffff',
-          borderBottom: '1px solid var(--border-subtle)',
-          flexWrap: 'wrap',
-          gap: '0.75rem',
-        }}
-      >
-        {/* Brand Logo & Clean Title */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <div
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '0.375rem',
-                background: '#0f172a',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Layers size={17} color="#ffffff" />
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <h1 style={{ fontSize: '1.05rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#0f172a' }}>
-                  TaskFlow Pro
-                </h1>
-              </div>
-              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                Directed Acyclic Graph Scheduling & Precedence Engine
-              </p>
-            </div>
-          </div>
+      ) : (
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-app)' }}>
+              {/* Top Navbar */}
+              <header
+                style={{
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 100,
+                  padding: '0.75rem 1.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: '#ffffff',
+                  borderBottom: '1px solid var(--border-subtle)',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem',
+                }}
+              >
+                {/* Brand Logo & Clean Title */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div
+                    onClick={() => navigateTo('/')}
+                    title="Return to Landing Page (Home)"
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer' }}
+                  >
+                    <div
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '0.375rem',
+                        background: '#0f172a',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Layers size={17} color="#ffffff" />
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <h1 style={{ fontSize: '1.05rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#0f172a' }}>
+                          TaskFlow AI
+                        </h1>
+                      </div>
+                      <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                        Directed Acyclic Graph Scheduling & Precedence Engine
+                      </p>
+                    </div>
+                  </div>
 
           {/* Active Company / Workspace Selector Pill */}
           <div
@@ -314,6 +331,47 @@ export const App: React.FC = () => {
 
         {/* Action Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
+          {/* AI Project Architect Button */}
+          <button
+            type="button"
+            onClick={() => setIsAiArchitectOpen(true)}
+            className="btn btn-secondary"
+            title="Generate full enterprise DAG with Groq AI"
+            style={{
+              fontSize: '0.75rem',
+              padding: '0.35rem 0.75rem',
+              background: '#f8fafc',
+              border: '1px solid #cbd5e1',
+              color: '#0f172a',
+              fontWeight: 700,
+            }}
+          >
+            <Cpu size={13} />
+            AI Architect
+          </button>
+
+          {/* What-If Schedule Delay Simulator Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setSimulatorTaskId(tasks.length > 0 ? tasks[0].id : null);
+              setIsSimulatorOpen(true);
+            }}
+            className="btn btn-secondary"
+            title="Simulate schedule slippage & verify non-compounding max() rule"
+            style={{
+              fontSize: '0.75rem',
+              padding: '0.35rem 0.75rem',
+              background: '#f8fafc',
+              border: '1px solid #cbd5e1',
+              color: '#0f172a',
+              fontWeight: 700,
+            }}
+          >
+            <Zap size={13} />
+            Simulate Delay
+          </button>
+
           {/* Workspaces / Templates button */}
           <button
             type="button"
@@ -659,6 +717,8 @@ export const App: React.FC = () => {
           )
         )}
       </main>
+    </div>
+  )}
 
       {/* Task Detail Modal */}
       {activeSelectedTask && (
@@ -669,6 +729,11 @@ export const App: React.FC = () => {
           onUpdate={(id, updates) => updateTask({ id, payload: updates })}
           onDelete={(id) => deleteTask(id)}
           onTaskRefreshed={() => invalidate()}
+          onSimulateDelay={(t) => {
+            setSelectedTask(null);
+            setSimulatorTaskId(t.id);
+            setIsSimulatorOpen(true);
+          }}
         />
       )}
 
@@ -705,6 +770,7 @@ export const App: React.FC = () => {
           onTemplateLoaded={(templateName) => {
             invalidate();
             addToast(`Workspace deployed: ${templateName}`, 'success');
+            navigateTo('/dashboard');
           }}
           tasks={tasks}
           criticalPathTaskIds={criticalPath}
@@ -719,6 +785,48 @@ export const App: React.FC = () => {
           onSuccess={(data) => {
             setCompanySession(data);
             addToast(`Workspace active: ${data.orgName} (${data.workspaceName})`, 'success');
+            navigateTo('/dashboard');
+          }}
+        />
+      )}
+
+      {/* What-If Schedule Delay Simulator Modal */}
+      {isSimulatorOpen && (
+        <WhatIfSimulatorModal
+          tasks={tasks}
+          initialTaskId={simulatorTaskId}
+          onClose={() => {
+            setIsSimulatorOpen(false);
+            setSimulatorTaskId(null);
+          }}
+          onApplySuccess={() => {
+            invalidate();
+          }}
+          onToast={addToast}
+        />
+      )}
+
+      {/* Generative AI Project Architect Modal */}
+      {isAiArchitectOpen && (
+        <AiProjectArchitectModal
+          onClose={() => setIsAiArchitectOpen(false)}
+          onDeploySuccess={() => {
+            invalidate();
+            navigateTo('/dashboard');
+          }}
+          onToast={addToast}
+        />
+      )}
+
+      {/* Organization Workspace Login / Signup Modal */}
+      {isAuthOpen && (
+        <CompanyAuthModal
+          initialMode={authMode}
+          onClose={() => setIsAuthOpen(false)}
+          onSuccess={(data) => {
+            setCompanySession(data);
+            addToast(`Welcome to ${data.orgName} (${data.workspaceName})`, 'success');
+            navigateTo('/dashboard');
           }}
         />
       )}
@@ -751,6 +859,7 @@ export const App: React.FC = () => {
           </div>
         ))}
       </div>
-    </div>
+    </>
   );
 };
+

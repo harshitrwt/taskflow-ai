@@ -97,6 +97,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ template_id }),
     }),
+
   simulateDelay: (taskId: string, delayDays: number, applyToDb = false): Promise<SimulateDelayResponse> =>
     request<SimulateDelayResponse>('/tasks/simulate-delay', {
       method: 'POST',
@@ -109,4 +110,5 @@ export const api = {
       body: JSON.stringify({ prompt, apply_to_db: applyToDb }),
     }),
 };
+
 
