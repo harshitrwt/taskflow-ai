@@ -62,84 +62,6 @@ When boards treat cards as silos, teams maintain dependencies in disconnected sp
 
 ---
 
-## 2. System Architecture & Component Separation
-
-TaskFlow AI follows a strict **Clean Architecture** model where core scheduling algorithms are mathematically pure and physically decoupled from database models, web frameworks, and network transports.
-
-```
-┌──────────────────────────────────────────────────────────────────────────────────────── ┐
-│                                   CLIENT LAYER (Browser)                                │
-│                                                                                         │
-│   Landing Page (/)                   Kanban Workspace (/dashboard)                      │
-│   ├── Floating Nav                   ├── Drag-and-Drop Column Movement (@dnd-kit)       │
-│   ├── Live Board Preview             ├── Interactive DAG Topology Visualizer            │
-│   └── Company Auth Modal             ├── Critical Path Zero-Slack Highlight             │
-│                                      ├── What-If Schedule Delay Simulator               │
-│                                      └── AI Dependency Suggestion Chips (Human-in-Loop) │
-└───────────────────────────────────────────┬──────────────────────────────────────────── ┘
-                                            │ HTTP / JSON REST API
-┌───────────────────────────────────────────▼────────────────────────────────────────────┐
-│                             API GATEWAY LAYER (FastAPI)                                │
-│                                                                                        │
-│   CORS Security Middleware (Vercel Regex & Localhost)                                  │
-│   ├── /api/v1/tasks                     (CRUD, Drag/Drop Move, Dynamic Status)         │
-│   ├── /api/v1/dependencies              (Edge Management, Cycle Rejection Guard)       │
-│   ├── /api/v1/critical-path             (Zero-Slack CPM Chain Identification)          │
-│   ├── /api/v1/tasks/simulate-delay      (Non-destructive What-If Delay Modeling)       │
-│   ├── /api/v1/tasks/{id}/suggest-deps   (Groq LLaMA 3.3 Semantic Advisor)              │
-│   └── /api/v1/ai/generate-project       (Generative DAG Project Architect)             │
-└──────────────────────┬─────────────────────────────────────────┬───────────────────────┘
-                       │                                         │
-                       │ Pure In-Memory DTOs                     │ Async Parameterized SQL
-                       │ (No DB / No HTTP)                       │
-┌──────────────────────▼────────────────────────┐ ┌──────────────▼───────────────────────┐
-│     MATHEMATICAL SCHEDULING ENGINE            │ │           PERSISTENCE LAYER          │
-│          (backend/app/engine/)                │ │        (SQLAlchemy 2.0 Async)        │
-│                                               │ │                                      │
-│  • graph.py: Adjacency Lists & DFS Reach      │ │  • Neon PostgreSQL / SQLite dev      │
-│  • cycle_check.py: Pre-write Cycle Detection  │ │  • tasks Table:                      │
-│  • scheduler.py: Kahn's Forward Pass (Dates)  │ │    id, title, duration, dates,       │
-│                  Topological Backward (CPM)   │ │    column_status (backlog..done)     │
-│  • status.py: Dynamic Blocked/Ready Eval      │ │  • dependencies Table:               │
-│                                               │ │    task_id, depends_on_task_id       │
-│  *ZERO THIRD-PARTY OR FRAMEWORK IMPORTS*      │ │    (Foreign Keys + Cascade Deletes)  │
-└───────────────────────────────────────────────┘ └──────────────────────────────────────┘
-```
-
-### Complete End-to-End Data Flow Pipeline
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User as Engineer / User
-    participant UI as React Frontend
-    participant API as FastAPI Gateway
-    participant Guard as Cycle Guard (DFS)
-    participant Engine as Topological Engine
-    participant DB as PostgreSQL (Neon)
-
-    User->>UI: Adds Dependency (Task D depends on Task B)
-    UI->>API: POST /api/v1/dependencies {task_id: D, depends_on_id: B}
-    API->>Guard: would_create_cycle(graph, D, B)?
-    alt Cycle Detected (B can already reach D)
-        Guard-->>API: True (Cycle invariant violated)
-        API-->>UI: 409 Conflict {"error": "cycle_detected"}
-        UI-->>User: Red Warning Toast: Cycle Rejected (No DB Write)
-    else Acyclic Graph Confirmed
-        Guard-->>API: False (Valid DAG)
-        API->>DB: INSERT INTO dependencies (task_id, depends_on_id)
-        API->>Engine: recompute_schedule(graph) & compute_status(graph)
-        Engine->>Engine: Kahn's Topological Forward Pass (max() calculation)
-        Engine->>Engine: Backward Pass Zero-Slack Calculation (CPM)
-        Engine-->>API: Updated Dates, Computed Status & Critical Path
-        API->>DB: UPDATE tasks SET start_date, end_date
-        API-->>UI: 201 Created {updated_tasks, critical_path}
-        UI-->>User: Board Re-renders with updated schedules & blocker badges
-    end
-```
-
----
-
 ## 3. Mathematical Scheduling Engine & The Diamond Proof
 
 ### Why `max()` and Not `sum()` - Eliminating the Compounding Bug
@@ -215,45 +137,6 @@ Task titles and descriptions are free-form text entered by end-users. If interpo
 
 Furthermore, LLMs frequently hallucinate nonexistent task IDs or propose circular relationships.
 
-### The 5-Stage Defense-in-Depth Pipeline
-
-```
-                     User Task Title & Description (Untrusted Input)
-                                            │
-                                            ▼
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│  STAGE 1: Role Isolation & System Prompt Invariant                                     │
-│  Task text is strictly marked as data to analyze. System prompt explicitly orders      │
-│  the model to ignore instructions embedded in user-supplied strings.                   │
-└───────────────────────────────────────────┬────────────────────────────────────────────┘
-                                            │ Structured JSON Output
-┌───────────────────────────────────────────▼────────────────────────────────────────────┐
-│  STAGE 2: Strict Candidate ID Allow-List Validation                                    │
-│  The backend compares every returned task_id against the valid candidate task pool.    │
-│  ANY ID NOT IN THE CANDIDATE SET IS SILENTLY DROPPED. Hallucination rate = 0%.         │
-└───────────────────────────────────────────┬────────────────────────────────────────────┘
-                                            │ Valid Candidate IDs
-┌───────────────────────────────────────────▼────────────────────────────────────────────┐
-│  STAGE 3: Pure Engine Cycle Pre-Check (would_create_cycle)                             │
-│  Every surviving suggestion is evaluated against the current graph topology.           │
-│  Any suggestion that would introduce a cycle is pruned before reaching the UI.         │
-└───────────────────────────────────────────┬────────────────────────────────────────────┘
-                                            │ Acyclic Candidates
-┌───────────────────────────────────────────▼────────────────────────────────────────────┐
-│  STAGE 4: Confidence Score Threshold Filter (>= 0.50)                                  │
-│  Suggestions with weak confidence or ambiguous reasoning are filtered out.             │
-└───────────────────────────────────────────┬────────────────────────────────────────────┘
-                                            │ Verified Suggestion Chips
-┌───────────────────────────────────────────▼────────────────────────────────────────────┐
-│  STAGE 5: Human-in-the-Loop Review (Zero Direct Write Authority)                       │
-│  Suggestions appear as interactive preview chips. The AI CANNOT write to the DB.       │
-│  Edges are only created when an engineer explicitly clicks "Accept Prerequisite".      │
-└────────────────────────────────────────────────────────────────────────────────────────┘
-```
-
-- **Fail-Open Resilience:** If the Groq API key is missing, rate-limited, or offline, the endpoint returns HTTP 200 with an empty list `[]`. The core Kanban board, drag-and-drop mechanics, and DAG engine remain 100% operational.
-
----
 
 ## 5. Complete REST API Specification
 
@@ -291,20 +174,6 @@ All endpoints are versioned under `/api/v1` and feature dual fallback routing at
 | **Testing & Reliability** | 17/17 automated pytest test suite testing cycle checks, deep chains, diamond convergence, rollback, and mocked LLM hallucination dropping. |
 
 ---
-
-## 7. Canonical Seed Graph Walkthrough (Judge Test Script)
-
-The seed dataset (`backend/scripts/seed.py` or the in-app **Reset Demo** button) loads a realistic 10-task software engineering project featuring **dual diamond convergences**:
-
-```
-[T1] Repository Setup (Done)
- └──► [T2] Schema Design (Done)
-       ├──► [T3] Backend API (In Progress, 4d) ────┐
-       │     ├──► [T6] Frontend Integration (2d) ─┼──► [T9] Staging Deploy ──► [T10] Demo Prep
-       │     └──► [T7] Integration Tests (2d) ────┘
-       ├──► [T4] Auth Service (Backlog, 3d) ──────┘
-       └──► [T5] Frontend UI Shell (In Progress, 3d) ──► [T6]
-```
 
 ### 3-Step Verification Script for Judges:
 
@@ -409,32 +278,7 @@ npm run dev
 
 ---
 
-## 10. Cloud Deployment Guide (Render & Vercel)
-
-### Backend Deployment (Render / Railway)
-1. Link your GitHub repository in [Render](https://render.com) as a **Web Service**.
-2. Settings:
-   - **Root Directory:** `backend`
-   - **Build Command:** `pip install -r requirements.txt`
-   - **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-3. Environment Variables:
-   - `DATABASE_URL`: Your PostgreSQL connection string (e.g. from [Neon.tech](https://neon.tech))
-   - `GROQ_API_KEY`: Your Groq API key
-   - `CORS_ORIGINS`: `https://your-frontend.vercel.app,*`
-
-### Frontend Deployment (Vercel)
-1. Import your GitHub repository in [Vercel](https://vercel.com).
-2. Settings:
-   - **Framework Preset:** `Vite`
-   - **Root Directory:** `frontend`
-   - **Build Command:** `npm run build`
-   - **Output Directory:** `dist`
-3. Environment Variables:
-   - `VITE_API_BASE_URL`: `https://your-backend.onrender.com/api/v1` *(Set Type to **Config**)*
-
----
-
-## 11. Key Assumptions & Engineering Boundaries
+## 10. Key Assumptions & Engineering Boundaries
 
 As required by the specification, the following engineering boundaries are explicitly documented:
 1. **Discrete Day Granularity:** Task durations are tracked in whole integer days ($\ge 1$). Sub-day hourly time tracking is out of scope.
