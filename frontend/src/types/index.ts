@@ -71,3 +71,48 @@ export interface ApiError {
   message: string;
   detail?: unknown;
 }
+
+
+export interface ImpactedTaskSimulation {
+  id: string;
+  title: string;
+  original_start_date: string;
+  original_end_date: string;
+  simulated_start_date: string;
+  simulated_end_date: string;
+  shift_days: number;
+  is_critical: boolean;
+  is_target: boolean;
+}
+
+export interface SimulateDelayResponse {
+  target_task_id: string;
+  target_task_title: string;
+  delay_days: number;
+  baseline_project_end: string | null;
+  simulated_project_end: string | null;
+  project_delay_days: number;
+  critical_path: string[];
+  impacted_tasks: ImpactedTaskSimulation[];
+  max_precedence_rule_proven: boolean;
+  explanation: string;
+  applied: boolean;
+}
+
+export interface AiGeneratedTask {
+  key: string;
+  title: string;
+  description: string;
+  duration_days: number;
+  depends_on_keys: string[];
+}
+
+export interface AiGenerateProjectResponse {
+  project_title: string;
+  summary: string;
+  tasks: AiGeneratedTask[];
+  is_acyclic: boolean;
+  applied: boolean;
+  task_count: number;
+}
+

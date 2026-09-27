@@ -6,6 +6,8 @@ import {
   DependencyResponse,
   CriticalPathResponse,
   AiSuggestionResponse,
+  SimulateDelayResponse,
+  AiGenerateProjectResponse,
   ApiError,
 } from '../types';
 
@@ -94,6 +96,17 @@ export const api = {
     request<{ ok: boolean; template_id: string; count: number }>('/tasks/templates/load', {
       method: 'POST',
       body: JSON.stringify({ template_id }),
+    }),
+  simulateDelay: (taskId: string, delayDays: number, applyToDb = false): Promise<SimulateDelayResponse> =>
+    request<SimulateDelayResponse>('/tasks/simulate-delay', {
+      method: 'POST',
+      body: JSON.stringify({ task_id: taskId, delay_days: delayDays, apply_to_db: applyToDb }),
+    }),
+
+  generateProject: (prompt: string, applyToDb = false): Promise<AiGenerateProjectResponse> =>
+    request<AiGenerateProjectResponse>('/ai/generate-project', {
+      method: 'POST',
+      body: JSON.stringify({ prompt, apply_to_db: applyToDb }),
     }),
 };
 
