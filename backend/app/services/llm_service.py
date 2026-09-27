@@ -26,7 +26,7 @@ def validate_suggestions(
     graph: DependencyGraph,
     min_confidence: float = 0.5,
 ) -> list[dict[str, Any]]:
-    # Step 1: Parse response as JSON
+    # Parse response as JSON
     try:
         data = json.loads(raw_response)
     except Exception as e:
@@ -46,11 +46,11 @@ def validate_suggestions(
         confidence = item.get("confidence", 0.0)
         rationale = item.get("rationale", "")
 
-        # Step 2: Strict candidate allowlist defense
+        # Strict candidate allowlist defense
         if not task_id or task_id not in candidate_map:
             continue
 
-        # Step 3: Confidence threshold filter
+        # Confidence threshold filter
         try:
             conf_val = float(confidence)
         except (ValueError, TypeError):
@@ -59,7 +59,7 @@ def validate_suggestions(
         if conf_val < min_confidence:
             continue
 
-        # Step 4: Cycle rejection check (engine is sole authority)
+        #  Cycle rejection check (engine is sole authority)
         if would_create_cycle(graph, target_id, task_id):
             continue
 
