@@ -43,7 +43,7 @@ This results in phantom schedule inflation and false project delay projections.
 ### How TaskFlow AI Handles It
 - **Kahn's Topological Forward Pass:** Schedulers in [`backend/app/engine/scheduler.py`](file:///backend/app/engine/scheduler.py) evaluate tasks in topological order.
 - **$\max()$ Convergence:** The earliest start date is computed as:
-  $$\text{earliest\_start}(T) = \max_{p \in \text{prereqs}(T)}(\text{end\_date}(p)) + 1\text{ day}$$
+  $$\text{EarliestStart}(T) = \max_{p \in \text{Prerequisites}(T)}(\text{EndDate}(p)) + 1\text{ day}$$
 - Downstream task D absorbs the parallel delay and shifts by **exactly 3 days**, never compounding.
 
 ### Automated Test Verification

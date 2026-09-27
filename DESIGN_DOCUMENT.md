@@ -22,81 +22,37 @@ When task boards fail to model graph topology:
 
 ## 2. System Architecture & Component Separation
 
-TaskFlow AI follows a strict **Clean Architecture** model where core scheduling algorithms are mathematically pure and physically decoupled from database models, web frameworks, and network transports.
+TaskFlow AI follows a clean, decoupled architecture where mathematical scheduling logic is completely isolated from the database and API framework:
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────────────── ┐
-│                                   CLIENT LAYER (Browser)                                │
-│                                                                                         │
-│   Landing Page (/)                   Kanban Workspace (/dashboard)                      │
-│   ├── Floating Nav                   ├── Drag-and-Drop Column Movement (@dnd-kit)       │
-│   ├── Live Board Preview             ├── Interactive DAG Topology Visualizer            │
-│   └── Company Auth Modal             ├── Critical Path Zero-Slack Highlight             │
-│                                      ├── What-If Schedule Delay Simulator               │
-│                                      └── AI Dependency Suggestion Chips (Human-in-Loop) │
-└───────────────────────────────────────────┬──────────────────────────────────────────── ┘
-                                            │ HTTP / JSON REST API
-┌───────────────────────────────────────────▼────────────────────────────────────────────┐
-│                             API GATEWAY LAYER (FastAPI)                                │
-│                                                                                        │
-│   CORS Security Middleware (Vercel Regex & Localhost)                                  │
-│   ├── /api/v1/tasks                     (CRUD, Drag/Drop Move, Dynamic Status)         │
-│   ├── /api/v1/dependencies              (Edge Management, Cycle Rejection Guard)       │
-│   ├── /api/v1/critical-path             (Zero-Slack CPM Chain Identification)          │
-│   ├── /api/v1/tasks/simulate-delay      (Non-destructive What-If Delay Modeling)       │
-│   ├── /api/v1/tasks/{id}/suggest-deps   (Groq LLaMA 3.3 Semantic Advisor)              │
-│   └── /api/v1/ai/generate-project       (Generative DAG Project Architect)             │
-└──────────────────────┬─────────────────────────────────────────┬───────────────────────┘
-                       │                                         │
-                       │ Pure In-Memory DTOs                     │ Async Parameterized SQL
-                       │ (No DB / No HTTP)                       │
-┌──────────────────────▼────────────────────────┐ ┌──────────────▼───────────────────────┐
-│     MATHEMATICAL SCHEDULING ENGINE            │ │           PERSISTENCE LAYER          │
-│          (backend/app/engine/)                │ │        (SQLAlchemy 2.0 Async)        │
-│                                               │ │                                      │
-│  • graph.py: Adjacency Lists & DFS Reach      │ │  • Neon PostgreSQL / SQLite dev      │
-│  • cycle_check.py: Pre-write Cycle Detection  │ │  • tasks Table:                      │
-│  • scheduler.py: Kahn's Forward Pass (Dates)  │ │    id, title, duration, dates,       │
-│                  Topological Backward (CPM)   │ │    column_status (backlog..done)     │
-│  • status.py: Dynamic Blocked/Ready Eval      │ │  • dependencies Table:               │
-│                                               │ │    task_id, depends_on_task_id       │
-│  *ZERO THIRD-PARTY OR FRAMEWORK IMPORTS*      │ │    (Foreign Keys + Cascade Deletes)  │
-└───────────────────────────────────────────────┘ └──────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                   Frontend Client (React 18 + TypeScript + Vite)       │
+│   • Modern Landing Page (/) & Kanban Workspace (/dashboard)            │
+│   • @dnd-kit Drag-and-Drop Column Movement                             │
+│   • Interactive DAG Topology Viewer & Critical Path Toggle             │
+│   • What-If Delay Impact Simulator & AI Project Architect              │
+│   • Organization / Company Workspace Auth Session (localStorage)       │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ JSON REST API (/api/v1/*)
+┌───────────────────────────────────▼────────────────────────────────────┐
+│                       FastAPI Application Gateway                      │
+│   • /api/v1/tasks (CRUD, Column Move, Dynamic Status)                  │
+│   • /api/v1/dependencies (Edge Management with Cycle Guard)            │
+│   • /api/v1/critical-path (Zero-Slack CPM Calculation)                 │
+│   • /api/v1/tasks/{id}/suggest-dependencies (Groq LLM Engine)          │
+│   • /api/v1/tasks/simulate-delay (What-If Impact Analysis)             │
+│   • /api/v1/ai/generate-project (Generative DAG Architect)             │
+└───────────────────┬────────────────────────────────┬───────────────────┘
+                    │                                │
+┌───────────────────▼─────────────┐ ┌────────────────▼───────────────────┐
+│  Persistence Layer (SQLAlchemy) │ │    Pure Graph Engine (app/engine)   │
+│  • Neon Postgres / SQLite Dev   │ │    • graph.py (Adjacency & Reach)   │
+│  • Normalized Schema:           │ │    • cycle_check.py (Cycle Guard)   │
+│    - tasks table                │ │    • scheduler.py (Forward/Backward)│
+│    - dependencies table         │ │    • status.py (Blocked/Ready State)│
+│  • Only column_status saved     │ │    *ZERO DB OR HTTP DEPENDENCIES*   │
+└─────────────────────────────────┘ └────────────────────────────────────┘
 ```
-
-### Complete End-to-End Data Flow Pipeline
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User as Engineer / User
-    participant UI as React Frontend
-    participant API as FastAPI Gateway
-    participant Guard as Cycle Guard (DFS)
-    participant Engine as Topological Engine
-    participant DB as PostgreSQL (Neon)
-
-    User->>UI: Adds Dependency (Task D depends on Task B)
-    UI->>API: POST /api/v1/dependencies {task_id: D, depends_on_id: B}
-    API->>Guard: would_create_cycle(graph, D, B)?
-    alt Cycle Detected (B can already reach D)
-        Guard-->>API: True (Cycle invariant violated)
-        API-->>UI: 409 Conflict {"error": "cycle_detected"}
-        UI-->>User: Red Warning Toast: Cycle Rejected (No DB Write)
-    else Acyclic Graph Confirmed
-        Guard-->>API: False (Valid DAG)
-        API->>DB: INSERT INTO dependencies (task_id, depends_on_id)
-        API->>Engine: recompute_schedule(graph) & compute_status(graph)
-        Engine->>Engine: Kahn's Topological Forward Pass (max() calculation)
-        Engine->>Engine: Backward Pass Zero-Slack Calculation (CPM)
-        Engine-->>API: Updated Dates, Computed Status & Critical Path
-        API->>DB: UPDATE tasks SET start_date, end_date
-        API-->>UI: 201 Created {updated_tasks, critical_path}
-        UI-->>User: Board Re-renders with updated schedules & blocker badges
-    end
-```
-
----
 
 ### Pure Engine Design Invariant
 All core algorithms in [`backend/app/engine/`](file:///backend/app/engine/) use Python standard library modules only (`dataclasses`, `datetime`, `collections`). It has **zero imports from FastAPI, SQLAlchemy, or HTTP libraries**. This makes the scheduling algorithms completely decoupled, mathematically deterministic, and verifiable in under 5 milliseconds.
@@ -145,35 +101,35 @@ CREATE INDEX idx_dependencies_depends_on ON dependencies(depends_on_task_id);
 
 ## 4. Mathematical Scheduling Foundations
 
-### 4.1 Kahn's Algorithm Forward Pass (`max()` vs `sum()`)
+### 4.1 Kahn's Algorithm Forward Pass (max vs sum)
 When multiple dependency paths converge on a single downstream task (diamond graph), naive implementations sum delays across each path, leading to phantom schedule inflation:
 $$\Delta D = \Delta B + \Delta C \quad \text{(INCORRECT — Double Counting)}$$
 
 In TaskFlow AI, schedules are calculated via a topological forward pass:
-$$\text{earliest\_start}(T) = \max_{p \in \text{prereqs}(T)}(\text{end\_date}(p)) + 1\text{ day}$$
-$$\text{end\_date}(T) = \text{start\_date}(T) + (\text{duration\_days}(T) - 1)$$
+$$\text{EarliestStart}(T) = \max_{p \in \text{Prerequisites}(T)}(\text{EndDate}(p)) + 1\text{ day}$$
+$$\text{EndDate}(T) = \text{StartDate}(T) + (\text{Duration}(T) - 1)$$
 
 Because start dates are computed as a $\max()$ over direct prerequisite completion dates, delays on parallel tracks naturally absorb without compounding.
 
 ### 4.2 Bi-Directional Regression (Rollback on Regression)
-$$\text{status}(T) = \begin{cases} 
-\text{ready}, & \text{if } \forall p \in \text{prereqs}(T), \text{column\_status}(p) = \text{'done'} \\ 
-\text{blocked}, & \text{otherwise} 
+$$\text{Status}(T) = \begin{cases} 
+\text{Ready}, & \text{if } \forall p \in \text{Prerequisites}(T), \text{ColumnStatus}(p) = \text{'done'} \\ 
+\text{Blocked}, & \text{otherwise} 
 \end{cases}$$
 
-- A task with zero prerequisites evaluates to `ready` immediately.
-- Moving any completed task backwards from `Done` to `In Progress` immediately triggers recomputation across the downstream subgraph, reverting unblocked tasks back to `blocked`.
+- A task with zero prerequisites evaluates to `Ready` immediately.
+- Moving any completed task backwards from `Done` to `In Progress` immediately triggers recomputation across the downstream subgraph, reverting unblocked tasks back to `Blocked`.
 
 ### 4.3 Critical Path Method (CPM) Backward Pass
-1. $\text{project\_finish} = \max_{n \in \text{nodes}}(\text{end\_date}(n))$
+1. $\text{ProjectFinish} = \max_{n \in \text{Nodes}}(\text{EndDate}(n))$
 2. Traverse nodes in reverse topological order:
-   $$\text{latest\_finish}(T) = \begin{cases} 
-   \text{project\_finish}, & \text{if } \text{successors}(T) = \emptyset \\ 
-   \min_{s \in \text{successors}(T)}(\text{latest\_start}(s) - 1), & \text{otherwise} 
+   $$\text{LatestFinish}(T) = \begin{cases} 
+   \text{ProjectFinish}, & \text{if } \text{Successors}(T) = \emptyset \\ 
+   \min_{s \in \text{Successors}(T)}(\text{LatestStart}(s) - 1), & \text{otherwise} 
    \end{cases}$$
-   $$\text{latest\_start}(T) = \text{latest\_finish}(T) - \text{duration\_days}(T) + 1$$
-3. $\text{slack}(T) = \text{latest\_start}(T) - \text{earliest\_start}(T)$
-4. $\text{Critical Path} = \{ T \mid \text{slack}(T) = 0 \}$
+   $$\text{LatestStart}(T) = \text{LatestFinish}(T) - \text{Duration}(T) + 1$$
+3. $\text{Slack}(T) = \text{LatestStart}(T) - \text{EarliestStart}(T)$
+4. $\text{CriticalPath} = \{ T \mid \text{Slack}(T) = 0 \}$
 
 ---
 
