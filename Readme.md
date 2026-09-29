@@ -3,7 +3,6 @@
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/Frontend-React_18_TypeScript-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
-[![Groq](https://img.shields.io/badge/LLM-Groq_Llama_3.3_70B-F55036?style=flat-square)](https://groq.com)
 [![Tests](https://img.shields.io/badge/Tests-17%2F17_Passing-success?style=flat-square)](https://pytest.org)
 [![Build](https://img.shields.io/badge/Vite-Production_Build_Passing-success?style=flat-square)](https://vitejs.dev)
 
